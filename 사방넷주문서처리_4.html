@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사방넷 주문서 자동처리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 16px;
+  }
+
+  .container { width: 100%; max-width: 680px; }
+
+  /* 헤더 */
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #4f8ef7;
+    letter-spacing: -0.3px;
+  }
+  .header p {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+
+  /* 카드 */
+  .card {
+    background: #1e2130;
+    border: 1px solid #2d3340;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4f8ef7;
+    padding: 10px 16px;
+    border-bottom: 1px solid #2d3340;
+    background: #191c28;
+  }
+  .card-body { padding: 14px 16px; }
+
+  /* 파일 드롭존 */
+  .dropzone {
+    border: 2px dashed #2d3340;
+    border-radius: 8px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #161924;
+  }
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: #4f8ef7;
+    background: #1a2035;
+  }
+  .dropzone-icon { font-size: 32px; margin-bottom: 8px; }
+  .dropzone-text { font-size: 13px; color: #9ca3af; }
+  .dropzone-text strong { color: #4f8ef7; }
+  .dropzone-hint { font-size: 11px; color: #4b5563; margin-top: 4px; }
+
+  #fileInput { display: none; }
+
+  /* 파일 선택됨 */
+  .file-selected {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1a2035;
+    border: 1px solid #3b4f7a;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 10px;
+  }
+  .file-selected-icon { font-size: 20px; }
+  .file-selected-name { font-size: 13px; color: #93c5fd; flex: 1; word-break: break-all; }
+  .file-selected-clear {
+    background: none; border: none; color: #6b7280;
+    cursor: pointer; font-size: 16px; padding: 2px 6px;
+    border-radius: 4px; transition: color 0.2s;
+  }
+  .file-selected-clear:hover { color: #ef4444; }
+
+  /* 옵션 체크박스 */
+  .options { display: flex; flex-direction: column; gap: 8px; }
+  .option-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: #9ca3af; cursor: pointer;
+  }
+  .option-item input[type=checkbox] { accent-color: #4f8ef7; width: 14px; height: 14px; cursor: pointer; }
+
+  /* 실행 버튼 */
+  .btn-run {
+    width: 100%;
+    padding: 14px;
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-bottom: 14px;
+  }
+  .btn-run:hover:not(:disabled) { background: #3b7de8; }
+  .btn-run:active:not(:disabled) { transform: scale(0.99); }
+  .btn-run:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+
+  /* 로그 */
+  .log-area {
+    background: #0d0f18;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    color: #7dd3fc;
+    height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.6;
+  }
+  .log-area:empty::before {
+    content: '처리 결과가 여기에 표시됩니다...';
+    color: #374151;
+  }
+  .log-ok   { color: #34d399; }
+  .log-err  { color: #f87171; }
+  .log-info { color: #7dd3fc; }
+  .log-sep  { color: #374151; }
+
+  /* 다운로드 버튼 */
+  .btn-download {
+    width: 100%;
+    padding: 12px;
+    background: #065f46;
+    color: #6ee7b7;
+    border: 1px solid #059669;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: none;
+    margin-top: 10px;
+  }
+  .btn-download:hover { background: #047857; }
+  .btn-download.visible { display: block; }
+
+  /* 진행바 */
+  .progress-wrap {
+    background: #1e2130;
+    border-radius: 4px;
+    height: 4px;
+    overflow: hidden;
+    margin-top: 10px;
+    display: none;
+  }
+  .progress-wrap.visible { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: #4f8ef7;
+    width: 0%;
+    transition: width 0.3s;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>📦 사방넷 주문서 자동처리</h1>
+    <p>상품명변환 · 수량분리 · 원단구분 · 정렬</p>
+  </div>
+
+  <!-- 파일 선택 -->
+  <div class="card">
+    <div class="card-title">📂 파일 선택</div>
+    <div class="card-body">
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <div class="dropzone-icon">📄</div>
+        <div class="dropzone-text"><strong>클릭</strong>하거나 파일을 여기로 드래그하세요</div>
+        <div class="dropzone-hint">.xlsx / .xls 파일 지원</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+      <div class="file-selected" id="fileSelected" style="display:none">
+        <span class="file-selected-icon">📊</span>
+        <span class="file-selected-name" id="fileName"></span>
+        <button class="file-selected-clear" onclick="clearFile()">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 옵션 -->
+  <div class="card">
+    <div class="card-title">⚙️ 처리 옵션</div>
+    <div class="card-body">
+      <div class="options">
+        <label class="option-item">
+          <input type="checkbox" id="opt_name" checked>
+          상품명 앞 (옵션확인)/(옵션확인필요) 제거 및 옵션 기반 상품명 재조합
+        </label>
+        <label class="option-item">
+          <input type="checkbox" id="opt_qty" checked>
+          수량 분리 (수량 N → N행으로 분할, 수량 1로 통일)
+        </label>
+        <label class="option-item">
+          <input type="checkbox" id="opt_fabric" checked>
+          원단구분 컬럼 추가 (플레인 / 엠보싱 자동 판별)
+        </label>
+        <label class="option-item">
+          <input type="checkbox" id="opt_sort" checked>
+          정렬 (상품명 → 원단구분 순)
+        </label>
+        <label class="option-item">
+          <input type="checkbox" id="opt_exclude" checked>
+          제외 상품 필터 (숨쉬고, 커버업, 한포, 코디엠)
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 실행 버튼 -->
+  <button class="btn-run" id="btnRun" onclick="runProcess()" disabled>
+    ▶ 처리 시작
+  </button>
+
+  <!-- 로그 -->
+  <div class="card">
+    <div class="card-title">📋 처리 로그</div>
+    <div class="card-body">
+      <div class="log-area" id="logArea"></div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <button class="btn-download" id="btnDownload" onclick="downloadResult()">
+        ⬇ 결과 파일 다운로드
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── 전역 상태 ────────────────────────────────────────────
+let selectedFile = null;
+let resultWorkbook = null;
+let resultFileName = '';
+
+const EXCLUDE = ['숨쉬고', '커버업', '한포', '코디엠'];
+
+// ── 파일 선택 ────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) setFile(e.target.files[0]);
+});
+
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function setFile(file) {
+  selectedFile = file;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSelected').style.display = 'flex';
+  document.getElementById('btnRun').disabled = false;
+  clearLog();
+  document.getElementById('btnDownload').classList.remove('visible');
+}
+
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileSelected').style.display = 'none';
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnDownload').classList.remove('visible');
+  clearLog();
+}
+
+// ── 로그 ─────────────────────────────────────────────────
+function clearLog() {
+  document.getElementById('logArea').innerHTML = '';
+}
+
+function log(msg, type = 'info') {
+  const el = document.getElementById('logArea');
+  const span = document.createElement('div');
+  span.className = `log-${type}`;
+  span.textContent = msg;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(pct) {
+  document.getElementById('progressWrap').classList.toggle('visible', pct > 0 && pct < 100);
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+// ── 상품명 변환 ──────────────────────────────────────────
+function normalizeProductName(product, option) {
+  let p = String(product || '').trim();
+  let o = String(option || '').trim();
+
+  // 괄호 제거
+  p = p.replace(/^\(옵션확인필요\)\s*/, '').replace(/^\(옵션확인\)\s*/, '').trim();
+
+  if (!o || o === 'undefined' || o === 'null') return p;
+
+  // 플레인/엠보싱 선택: [선택값] [용량] [상품종류]
+  let m = o.match(/플레인\/엠보싱\s*선택\s*:\s*(\S+)\s+([\d.]+kg)\s+(\S+)/);
+  if (m) return `미엘 ${m[3]} ${m[1]} ${m[2]}`;
+
+  // 와이드 MAXX
+  m = o.match(/와이드(롤티슈|물티슈)\s*:.*?MAXX.*?(\d+팩)/i);
+  if (m) return `미엘 와이드 맥스 ${m[2]}`;
+
+  // 와이드 일반
+  m = o.match(/와이드(롤티슈|물티슈)\s*:.*?(\d+팩)/);
+  if (m) return `미엘 와이드 ${m[2]}`;
+
+  // 팩수: ★미엘 클래식 N팩★ / 원단종류선택: 플레인|엠보싱
+  m = o.match(/팩수\s*:\s*★([^★]+?)★\s*\/\s*원단종류선택\s*:\s*(플레인|엠보싱)/);
+  if (m) {
+    const name = m[1].trim();
+    const fabric = m[2];
+    if (fabric === '엠보싱') return `${name}(엠)`;
+    return name;
+  }
+
+  // 원단종류선택: ★미엘 클래식 N팩★엠보싱  (팩수 없이 원단종류선택만 있는 패턴)
+  m = o.match(/원단종류선택\s*:\s*★([^★]+?)★(플레인|엠보싱)/);
+  if (m) {
+    const name = m[1].trim();
+    const fabric = m[2];
+    if (fabric === '엠보싱') return `${name}(엠)`;
+    return name;
+  }
+
+  // 팩수: ★미엘 클래식 N팩★  (원단 구분 없는 경우)
+  m = o.match(/팩수\s*:\s*★([^★]+?)★/);
+  if (m) return m[1].trim();
+
+  // 미엘 XXX N팩 + 숫자매 형태
+  m = o.match(/(미엘\s+\S+\s+\d+팩)\s+\d+매/);
+  if (m) return m[1].trim();
+
+  // 팩수: [종류] [매수] N팩
+  m = o.match(/팩수\s*:\s*(\S+?)(?:\s+\d+매)?\s+(\d+팩)/);
+  if (m) return `미엘 ${m[1]} ${m[2]}`;
+
+  // N개 N매일
+  m = o.match(/(\d+)개\s+\d+매/);
+  if (m) {
+    const km = p.match(/미엘\s+(\S+)/);
+    const kind = km ? km[1] : '클린워터';
+    return `미엘 ${kind} ${m[1]}팩`;
+  }
+
+  return p;
+}
+
+// ── 원단 구분 ────────────────────────────────────────────
+function getFabric(option, product) {
+  const combined = String(option || '') + String(product || '');
+  if (combined.includes('플레인')) return '플레인';
+  if (combined.includes('엠보')) return '엠보싱';
+  return '';
+}
+
+// ── 메인 처리 ────────────────────────────────────────────
+async function runProcess() {
+  if (!selectedFile) return;
+
+  clearLog();
+  resultWorkbook = null;
+  document.getElementById('btnDownload').classList.remove('visible');
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnRun').textContent = '처리 중...';
+  setProgress(5);
+
+  try {
+    log(`파일 읽는 중: ${selectedFile.name}`);
+
+    const buf = await selectedFile.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    let rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    log(`총 ${rows.length}행 읽음`);
+    setProgress(20);
+
+    // 컬럼명 탐색
+    const keys = Object.keys(rows[0] || {});
+    const findCol = (...kws) => keys.find(k => kws.some(kw => k.includes(kw))) || null;
+
+    const COL_PRODUCT = findCol('상품명');
+    const COL_OPTION  = findCol('옵션(수집)', '옵션수집', '옵션');
+    const COL_QTY     = findCol('수량');
+
+    if (!COL_PRODUCT) throw new Error("'상품명' 컬럼을 찾을 수 없습니다.");
+    if (!COL_QTY)     throw new Error("'수량' 컬럼을 찾을 수 없습니다.");
+
+    log(`컬럼 확인 → 상품명: [${COL_PRODUCT}] | 옵션: [${COL_OPTION || '없음'}] | 수량: [${COL_QTY}]`);
+
+    // STEP 1. 제외 상품 필터
+    if (document.getElementById('opt_exclude').checked) {
+      const before = rows.length;
+      rows = rows.filter(r => !EXCLUDE.some(ex => String(r[COL_PRODUCT] || '').includes(ex)));
+      log(`제외 상품 ${before - rows.length}행 제거`);
+    }
+    setProgress(35);
+
+    // STEP 2. 상품명 변환
+    let changed = 0;
+    if (document.getElementById('opt_name').checked) {
+      rows.forEach(r => {
+        const orig = r[COL_PRODUCT];
+        const newName = normalizeProductName(orig, COL_OPTION ? r[COL_OPTION] : '');
+        if (newName !== orig) { r[COL_PRODUCT] = newName; changed++; }
+      });
+      log(`상품명 변환 완료: ${changed}건`);
+    }
+    setProgress(50);
+
+    // STEP 3. 수량 분리 (강청/한포/새솜이/마스크는 원본 유지)
+    const QTY_SKIP = ['강청', '한포', '새솜이'];
+    if (document.getElementById('opt_qty').checked) {
+      const expanded = [];
+      rows.forEach(r => {
+        const pName = String(r[COL_PRODUCT] || '');
+        const skip = QTY_SKIP.some(kw => pName.includes(kw));
+        const qty = parseInt(r[COL_QTY]) || 1;
+        if (!skip && qty > 1) {
+          for (let i = 0; i < qty; i++) {
+            expanded.push({ ...r, [COL_QTY]: 1 });
+          }
+        } else {
+          expanded.push({ ...r });
+        }
+      });
+      log(`수량 분리 후 총 ${expanded.length}행 (강청/한포/새솜이/마스크 수량 원본 유지)`);
+      rows = expanded;
+    }
+    setProgress(65);
+
+    // STEP 4. 원단구분 컬럼
+    if (document.getElementById('opt_fabric').checked && COL_OPTION) {
+      rows.forEach(r => {
+        r['원단구분'] = getFabric(r[COL_OPTION], r[COL_PRODUCT]);
+      });
+      log('원단구분 컬럼 추가 완료');
+    }
+    setProgress(80);
+
+    // STEP 5. 정렬
+    if (document.getElementById('opt_sort').checked) {
+      const fabricOrder = { '플레인': 0, '엠보싱': 1, '': 2 };
+      rows.sort((a, b) => {
+        const pCmp = String(a[COL_PRODUCT] || '').localeCompare(String(b[COL_PRODUCT] || ''), 'ko');
+        if (pCmp !== 0) return pCmp;
+        return (fabricOrder[a['원단구분']] ?? 2) - (fabricOrder[b['원단구분']] ?? 2);
+      });
+      log('정렬 완료');
+    }
+    setProgress(90);
+
+    // STEP 6. 결과 워크북 생성 + 색상 적용
+    const newWs = XLSX.utils.json_to_sheet(rows);
+
+    // 헤더 스타일
+    const range = XLSX.utils.decode_range(newWs['!ref']);
+    const headerKeys = Object.keys(rows[0] || {});
+
+    // 컬럼 너비 자동
+    newWs['!cols'] = headerKeys.map(k => ({ wch: Math.min(30, Math.max(10, k.length * 2)) }));
+
+    resultWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(resultWorkbook, newWs, '처리결과');
+
+    const base = selectedFile.name.replace(/\.(xlsx|xls)$/i, '');
+    resultFileName = base + '_처리완료.xlsx';
+
+    setProgress(100);
+    log('─'.repeat(40), 'sep');
+    log(`✅ 완료! 총 ${rows.length}행 처리됨`, 'ok');
+    log(`저장 파일명: ${resultFileName}`, 'ok');
+
+    document.getElementById('btnDownload').classList.add('visible');
+
+  } catch (e) {
+    log(`❌ 오류: ${e.message}`, 'err');
+  } finally {
+    document.getElementById('btnRun').disabled = false;
+    document.getElementById('btnRun').textContent = '▶ 처리 시작';
+    setTimeout(() => setProgress(0), 800);
+  }
+}
+
+// ── 다운로드 ─────────────────────────────────────────────
+function downloadResult() {
+  if (!resultWorkbook) return;
+  XLSX.writeFile(resultWorkbook, resultFileName);
+  log(`다운로드: ${resultFileName}`, 'ok');
+}
+</script>
+</body>
+</html>
