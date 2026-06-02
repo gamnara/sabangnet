@@ -16,7 +16,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 30px 16px;
+    padding: 14px 16px;
   }
 
   .container { width: 100%; max-width: 680px; }
@@ -24,18 +24,18 @@
   /* 헤더 */
   .header {
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
   }
   .header h1 {
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 700;
     color: #4f8ef7;
     letter-spacing: -0.3px;
   }
   .header p {
-    font-size: 12px;
+    font-size: 11px;
     color: #6b7280;
-    margin-top: 4px;
+    margin-top: 2px;
   }
 
   /* 카드 */
@@ -43,24 +43,24 @@
     background: #1e2130;
     border: 1px solid #2d3340;
     border-radius: 10px;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
     overflow: hidden;
   }
   .card-title {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: #4f8ef7;
-    padding: 10px 16px;
+    padding: 7px 14px;
     border-bottom: 1px solid #2d3340;
     background: #191c28;
   }
-  .card-body { padding: 14px 16px; }
+  .card-body { padding: 10px 14px; }
 
   /* 파일 드롭존 */
   .dropzone {
     border: 2px dashed #2d3340;
     border-radius: 8px;
-    padding: 28px 20px;
+    padding: 14px 20px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
@@ -70,7 +70,7 @@
     border-color: #4f8ef7;
     background: #1a2035;
   }
-  .dropzone-icon { font-size: 32px; margin-bottom: 8px; }
+  .dropzone-icon { font-size: 22px; margin-bottom: 4px; }
   .dropzone-text { font-size: 13px; color: #9ca3af; }
   .dropzone-text strong { color: #4f8ef7; }
   .dropzone-hint { font-size: 11px; color: #4b5563; margin-top: 4px; }
@@ -98,27 +98,32 @@
   .file-selected-clear:hover { color: #ef4444; }
 
   /* 옵션 체크박스 */
-  .options { display: flex; flex-direction: column; gap: 8px; }
+  .options { display: flex; flex-direction: column; gap: 5px; }
   .option-item {
     display: flex; align-items: center; gap: 8px;
     font-size: 12px; color: #9ca3af; cursor: pointer;
   }
   .option-item input[type=checkbox] { accent-color: #4f8ef7; width: 14px; height: 14px; cursor: pointer; }
 
+  /* 버튼 행 */
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
   /* 실행 버튼 */
   .btn-run {
-    width: 100%;
-    padding: 14px;
+    flex: 1;
+    padding: 12px;
     background: #4f8ef7;
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
     transition: background 0.2s, transform 0.1s;
-    margin-bottom: 14px;
   }
   .btn-run:hover:not(:disabled) { background: #3b7de8; }
   .btn-run:active:not(:disabled) { transform: scale(0.99); }
@@ -128,15 +133,15 @@
   .log-area {
     background: #0d0f18;
     border-radius: 6px;
-    padding: 12px;
+    padding: 10px;
     font-family: 'Consolas', monospace;
-    font-size: 12px;
+    font-size: 11px;
     color: #7dd3fc;
-    height: 200px;
+    height: 110px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-all;
-    line-height: 1.6;
+    line-height: 1.5;
   }
   .log-area:empty::before {
     content: '처리 결과가 여기에 표시됩니다...';
@@ -149,7 +154,7 @@
 
   /* 다운로드 버튼 */
   .btn-download {
-    width: 100%;
+    flex: 1;
     padding: 12px;
     background: #065f46;
     color: #6ee7b7;
@@ -161,7 +166,6 @@
     cursor: pointer;
     transition: background 0.2s;
     display: none;
-    margin-top: 10px;
   }
   .btn-download:hover { background: #047857; }
   .btn-download.visible { display: block; }
@@ -239,10 +243,11 @@
     </div>
   </div>
 
-  <!-- 실행 버튼 -->
-  <button class="btn-run" id="btnRun" onclick="runProcess()" disabled>
-    ▶ 처리 시작
-  </button>
+  <!-- 버튼 행: 처리시작 + 다운로드 -->
+  <div class="btn-row">
+    <button class="btn-run" id="btnRun" onclick="runProcess()" disabled>▶ 처리 시작</button>
+    <button class="btn-download" id="btnDownload" onclick="downloadResult()">⬇ 다운로드</button>
+  </div>
 
   <!-- 로그 -->
   <div class="card">
@@ -252,9 +257,6 @@
       <div class="progress-wrap" id="progressWrap">
         <div class="progress-bar" id="progressBar"></div>
       </div>
-      <button class="btn-download" id="btnDownload" onclick="downloadResult()">
-        ⬇ 결과 파일 다운로드
-      </button>
     </div>
   </div>
 
@@ -496,13 +498,22 @@ async function runProcess() {
     const headerKeys = Object.keys(rows[0] || {});
 
     // 컬럼 너비 자동
-    newWs['!cols'] = headerKeys.map(k => ({ wch: Math.min(30, Math.max(10, k.length * 2)) }));
+    // 컬럼별 최대 글자수 기준으로 너비 계산
+    const colWidths = headerKeys.map(k => {
+      const maxLen = rows.reduce((max, r) => {
+        const val = String(r[k] || '');
+        return Math.max(max, val.length);
+      }, k.length);
+      return { wch: Math.min(20, Math.max(6, Math.ceil(maxLen * 0.7))) };
+    });
+    newWs['!cols'] = colWidths;
+
 
     resultWorkbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(resultWorkbook, newWs, '처리결과');
 
     const base = selectedFile.name.replace(/\.(xlsx|xls)$/i, '');
-    resultFileName = base + '_처리완료.xlsx';
+    resultFileName = base + '_처리완료.xls';
 
     setProgress(100);
     log('─'.repeat(40), 'sep');
